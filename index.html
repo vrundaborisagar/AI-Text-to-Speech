@@ -1,50 +1,285 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script src="script.js"></script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Indian Languages Text to Speech</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="stylesheet" href="style.css">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Text to Speech Demo with Indian Voices</title>
+<style>
+  body {
+    background: #0b2540;
+    color: white;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+      Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+    padding: 1rem;
+    max-width: 600px;
+    margin: auto;
+  }
+  label, select, textarea, button {
+    display: block;
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+  select, textarea {
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid #4da6ff;
+    background: #0b2540;
+    color: white;
+    font-size: 1rem;
+  }
+  button {
+    background: #4da6ff;
+    border: none;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  button:disabled {
+    background: #2a5a8a;
+    cursor: not-allowed;
+  }
+  #status {
+    font-style: italic;
+    margin-bottom: 1rem;
+    min-height: 1.2em;
+  }
+</style>
 </head>
 <body>
 
-<div class="container">
-  <h1><i class="fas fa-microphone"></i> Indian Text to Speech</h1>
-<select id="voiceSelect"></select>
-<button onclick="speakText()">Speak</button>
+<h1>AI Text to Speech Demo with Indian Voices</h1>
 
-  <textarea id="textInput" placeholder="Type your text here..."></textarea>
+<label for="language">Select Language</label>
+<select id="language" aria-label="Select language">
+  <option value="en">English</option>
+  <option value="hi">Hindi</option>
+  <option value="gu">Gujarati</option>
+  <option value="mr">Marathi</option>
+  <option value="te">Telugu</option>
+  <option value="ta">Tamil</option>
+  <option value="kn">Kannada</option>
+  <option value="bn">Bengali</option>
+  <option value="pa">Punjabi</option>
+  <option value="ml">Malayalam</option>
+  <option value="ar">Arabic</option>
+  <option value="es">Spanish</option>
+  <option value="fr">French</option>
+  <option value="de">German</option>
+  <option value="zh">Chinese</option>
+  <option value="ja">Japanese</option>
+  <option value="ko">Korean</option>
+  <option value="ru">Russian</option>
+  <option value="pt">Portuguese</option>
+</select>
 
-  <label>Select Language:</label>
-  <select id="languageSelect">
-    <option value="hi-IN">Hindi</option>
-    <option value="en-IN">English</option>
-    <option value="gu-IN">Gujarati</option>
-    <option value="mr-IN">Marathi</option>
-    <option value="ta-IN">Tamil</option>
-    <option value="te-IN">Telugu</option>
-    <option value="kn-IN">Kannada</option>
-    <option value="bn-IN">Bengali</option>
-    <option value="ml-IN">Malayalam</option>
-    <option value="or-IN">Odia</option>
-    <option value="pa-IN">Punjabi</option>
-  </select>
+<label for="provider">Select Provider</label>
+<select id="provider" aria-label="Select TTS provider">
+  <option value="browser">Browser (limited voices)</option>
+  <option value="google">Google Cloud TTS</option>
+  <option value="amazon">Amazon Polly</option>
+</select>
 
-  <label>Pitch: <span id="pitchValue">1</span></label>
-  <input type="range" id="pitch" min="0" max="2" value="1" step="0.1">
+<label for="voice">Select Voice</label>
+<select id="voice" aria-label="Select voice" disabled></select>
 
-  <label>Rate: <span id="rateValue">1</span></label>
-  <input type="range" id="rate" min="0.5" max="2" value="1" step="0.1">
+<label for="text">Text to Speak</label>
+<textarea id="text" rows="5" placeholder="Enter text here...">Hello! This is a demo of AI text to speech with Indian voices.</textarea>
 
-  <button onclick="speakText()">
-    <i class="fas fa-volume-up"></i> Speak Now
-  </button>
+<div id="status" aria-live="polite"></div>
 
-  <p id="statusMsg" class="status-msg"></p>
-</div>
+<button id="playBtn">Play</button>
+<button id="stopBtn" disabled>Stop</button>
 
-<script src="script.js"></script>
+<script>
+  const languageSelect = document.getElementById('language');
+  const providerSelect = document.getElementById('provider');
+  const voiceSelect = document.getElementById('voice');
+  const textInput = document.getElementById('text');
+  const playBtn = document.getElementById('playBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const statusEl = document.getElementById('status');
+
+  // Voice catalog for Google Cloud and Amazon Polly (example voices)
+  const VOICE_CATALOG = {
+    google: {
+      en: ["en-US-Wavenet-D", "en-US-Wavenet-F"],
+      hi: ["hi-IN-Wavenet-A", "hi-IN-Wavenet-B"],
+      gu: ["gu-IN-Wavenet-A", "gu-IN-Wavenet-B"],
+      mr: ["mr-IN-Wavenet-A", "mr-IN-Wavenet-B"],
+      te: ["te-IN-Wavenet-A", "te-IN-Wavenet-B"],
+      ta: ["ta-IN-Wavenet-A", "ta-IN-Wavenet-B"],
+      kn: ["kn-IN-Wavenet-A", "kn-IN-Wavenet-B"],
+      bn: ["bn-IN-Wavenet-A", "bn-IN-Wavenet-B"],
+      pa: ["pa-IN-Wavenet-A", "pa-IN-Wavenet-B"],
+      ml: ["ml-IN-Wavenet-A", "ml-IN-Wavenet-B"],
+      ar: ["ar-XA-Wavenet-A"],
+      es: ["es-ES-Wavenet-A"],
+      fr: ["fr-FR-Wavenet-A"],
+      de: ["de-DE-Wavenet-A"],
+      zh: ["cmn-CN-Wavenet-A"],
+      ja: ["ja-JP-Wavenet-A"],
+      ko: ["ko-KR-Wavenet-A"],
+      ru: ["ru-RU-Wavenet-A"],
+      pt: ["pt-BR-Wavenet-A"]
+    },
+    amazon: {
+      en: ["Joanna", "Matthew"],
+      hi: ["Aditi", "Raveena"],
+      gu: ["GujVoice1"], // Placeholder, replace with real Polly voice if available
+      mr: ["MarVoice1"], // Placeholder
+      te: ["TejVoice1"], // Placeholder
+      ta: ["TamiVoice1"], // Placeholder
+      kn: ["KannVoice1"], // Placeholder
+      bn: ["BengVoice1"], // Placeholder
+      pa: ["PanjVoice1"], // Placeholder
+      ml: ["MalayVoice1"], // Placeholder
+      ar: ["Zeina"],
+      es: ["Lucia"],
+      fr: ["Celine"],
+      de: ["Marlene"],
+      zh: ["Zhiyu"],
+      ja: ["Mizuki"],
+      ko: ["Seoyeon"],
+      ru: ["Tatyana"],
+      pt: ["Vitoria"]
+    }
+  };
+
+  let browserVoices = [];
+
+  // Load browser voices for "browser" provider
+  function loadBrowserVoices() {
+    browserVoices = speechSynthesis.getVoices();
+  }
+
+  // Populate voice dropdown based on language and provider
+  function populateVoices() {
+    const lang = languageSelect.value;
+    const provider = providerSelect.value;
+    voiceSelect.innerHTML = '';
+    let voices = [];
+
+    if (provider === 'browser') {
+      // Filter browser voices by language prefix
+      voices = browserVoices.filter(v => v.lang.toLowerCase().startsWith(lang.toLowerCase()));
+      if (voices.length === 0) {
+        voiceSelect.disabled = true;
+        statusEl.textContent = `No browser voices available for language "${languageSelect.options[languageSelect.selectedIndex].text}".`;
+        return;
+      }
+      voices.forEach(v => {
+        const option = document.createElement('option');
+        option.value = v.name;
+        option.textContent = `${v.name} (${v.lang}${v.default ? ', default' : ''})`;
+        voiceSelect.appendChild(option);
+      });
+      voiceSelect.disabled = false;
+      statusEl.textContent = '';
+      voiceSelect.selectedIndex = 0;
+    } else {
+      // Use voice catalog for Google or Amazon
+      voices = VOICE_CATALOG[provider][lang] || [];
+      if (voices.length === 0) {
+        voiceSelect.disabled = true;
+        statusEl.textContent = `No ${provider === 'google' ? 'Google Cloud' : 'Amazon Polly'} voices available for language "${languageSelect.options[languageSelect.selectedIndex].text}".`;
+        return;
+      }
+      voices.forEach(v => {
+        const option = document.createElement('option');
+        option.value = v;
+        option.textContent = v;
+        voiceSelect.appendChild(option);
+      });
+      voiceSelect.disabled = false;
+      statusEl.textContent = '';
+      voiceSelect.selectedIndex = 0;
+    }
+  }
+
+  // Play speech using browser TTS only (for demo)
+  function playBrowserSpeech() {
+    if (!('speechSynthesis' in window)) {
+      alert('Sorry, your browser does not support Speech Synthesis.');
+      return;
+    }
+    if (speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+    }
+    const text = textInput.value.trim();
+    if (!text) {
+      alert('Please enter some text to speak.');
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(text);
+    const selectedVoiceName = voiceSelect.value;
+    const selectedVoice = browserVoices.find(v => v.name === selectedVoiceName);
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang;
+    } else {
+      utterance.lang = languageSelect.value;
+    }
+    utterance.onstart = () => {
+      playBtn.disabled = true;
+      stopBtn.disabled = false;
+      statusEl.textContent = 'Speaking...';
+    };
+    utterance.onend = () => {
+      playBtn.disabled = false;
+      stopBtn.disabled = true;
+      statusEl.textContent = 'Finished speaking.';
+    };
+    utterance.onerror = () => {
+      playBtn.disabled = false;
+      stopBtn.disabled = true;
+      statusEl.textContent = 'Speech synthesis error.';
+    };
+    speechSynthesis.speak(utterance);
+  }
+
+  // Placeholder for playing remote TTS audio (requires backend)
+  async function playRemoteSpeech() {
+    statusEl.textContent = 'Remote TTS playback requires backend implementation.';
+    alert('Remote TTS playback is not implemented in this demo.');
+  }
+
+  playBtn.addEventListener('click', () => {
+    if (providerSelect.value === 'browser') {
+      playBrowserSpeech();
+    } else {
+      playRemoteSpeech();
+    }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    if (speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+      statusEl.textContent = 'Speech stopped.';
+    }
+    playBtn.disabled = false;
+    stopBtn.disabled = true;
+  });
+
+  languageSelect.addEventListener('change', populateVoices);
+  providerSelect.addEventListener('change', populateVoices);
+
+  if ('speechSynthesis' in window) {
+    speechSynthesis.onvoiceschanged = () => {
+      loadBrowserVoices();
+      if (providerSelect.value === 'browser') {
+        populateVoices();
+      }
+    };
+    loadBrowserVoices();
+  } else {
+    statusEl.textContent = 'Speech Synthesis not supported in this browser.';
+    playBtn.disabled = true;
+  }
+
+  // Initial population
+  populateVoices();
+</script>
+
 </body>
 </html>
