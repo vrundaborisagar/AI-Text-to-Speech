@@ -1,61 +1,62 @@
-const synth = window.speechSynthesis;
-let voices = [];
+import express from "express";
+import bodyParser from "body-parser";
+import textToSpeech from "@google-cloud/text-to-speech";
+import AWS from "aws-sdk";
 
-function populateVoices() {
-  voices = synth.getVoices();
-  const voiceSelect = document.getElementById('voiceSelect');
-  voiceSelect.innerHTML = '';
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-  voices.forEach((voice, index) => {
-    const option = document.createElement('option');
-    option.textContent = `${voice.name} (${voice.lang})`;
-    option.value = index;
-    voiceSelect.appendChild(option);
-  });
+app.use(bodyParser.json());
 
-  // Optionally preselect Hindi voice if available
-  const hindiVoiceIndex = voices.findIndex(v => v.lang === 'hi-IN');
-  if (hindiVoiceIndex >= 0) {
-    voiceSelect.selectedIndex = hindiVoiceIndex;
-  }
-}
-
-populateVoices();
-if (speechSynthesis.onvoiceschanged !== undefined) {
-  speechSynthesis.onvoiceschanged = populateVoices;
-}
-
-function speakText() {
-  const text = document.getElementById('textInput').value;
-  const selectedVoiceIndex = document.getElementById('voiceSelect').value;
-  const pitch = document.getElementById('pitch').value;
-  const rate = document.getElementById('rate').value;
-  const status = document.getElementById('statusMsg');
-
-  if (!text) {
-    status.innerText = 'Please enter some text!';
-    status.style.color = 'red';
-    return;
-  }
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.voice = voices[selectedVoiceIndex];
-  utterance.pitch = pitch;
-  utterance.rate = rate;
-  synth.speak(utterance);
-
-  status.innerText = 'Speaking...';
-  status.style.color = 'white';
-
-  utterance.onend = () => {
-    status.innerText = 'Done!';
-  };
-}
-
-// Update pitch and rate display values
-document.getElementById('pitch').addEventListener('input', function () {
-  document.getElementById('pitchValue').innerText = this.value;
+// Google Cloud client
+const googleClient = new textToSpeech.TextToSpeechClient({
+  keyFilename: "google-credentials.json" // ⚠️ put in .gitignore if committing
 });
-document.getElementById('rate').addEventListener('input', function () {
-  document.getElementById('rateValue').innerText = this.value;
+
+// Amazon Polly client
+const polly = new AWS.Polly({
+  region: "ap-south-1",
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+});
+
+// POST /tts
+app.post("/tts", async (req, res) => {
+  try {
+    const { text, lang, voice, provider } = req.body;
+
+    if (!text) {
+      return res.status(400).send("Text required");
+    }
+
+    if (provider === "google") {
+      const [response] = await googleClient.synthesizeSpeech({
+        input: { text },
+        voice: { languageCode: lang, name: voice || `${lang}-Wavenet-A` },
+        audioConfig: { audioEncoding: "MP3" }
+      });
+      res.set("Content-Type", "audio/mpeg");
+      return res.send(response.audioContent);
+    }
+
+    if (provider === "amazon") {
+      const result = await polly.synthesizeSpeech({
+        Text: text,
+        OutputFormat: "mp3",
+        VoiceId: voice || "Aditi",
+        LanguageCode: lang || "en-IN"
+      }).promise();
+      res.set("Content-Type", "audio/mpeg");
+      return res.send(result.AudioStream);
+    }
+
+    res.status(400).send("Invalid provider");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error generating speech");
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`TTS backend running on http://localhost:${PORT}`);
 });
